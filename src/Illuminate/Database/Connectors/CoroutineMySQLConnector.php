@@ -7,6 +7,7 @@ use Illuminate\Database\Connectors\Connector;
 use Illuminate\Database\Connectors\ConnectorInterface;
 use Hhxsv5\LaravelS\Illuminate\Database\SwoolePDO;
 use Illuminate\Support\Str;
+use Exception;
 
 class CoroutineMySQLConnector extends Connector implements ConnectorInterface
 {
@@ -22,26 +23,38 @@ class CoroutineMySQLConnector extends Connector implements ConnectorInterface
         try {
             $mysql = $this->connect($config);
         } catch (\Exception $e) {
-            $mysql = $this->_tryAgainIfCausedByLostConnection($e, $config);
+            $mysql = $this->tryAgainIfCausedByLostConnection($e, $config);
         }
 
         return $mysql;
     }
-
     /**
-     * @param \Throwable $e
-     * @param array $config
-     * @return SwoolePDO
-     * @throws \Throwable
+     * @param \Exception $e
+     * @return bool
      */
-    protected function _tryAgainIfCausedByLostConnection($e, array $config)
+    protected function causedByLostConnection(Exception $e)
     {
-        if ($this->causedByLostConnection($e) || Str::contains($e->getMessage(), 'is closed')) {
-            return $this->connect($config);
-        }
-        throw $e;
-    }
+        $message = $e->getMessage();
 
+        return Str::contains($message, [
+            'server has gone away',
+            'no connection to the server',
+            'Lost connection',
+            'is dead or not enabled',
+            'Error while sending',
+            'decryption failed or bad record mac',
+            'server closed the connection unexpectedly',
+            'SSL connection has been closed unexpectedly',
+            'Error writing data to the connection',
+            'Resource deadlock avoided',
+            'Transaction() on null',
+            'child connection forced to terminate due to client_idle_limit',
+            'query_wait_timeout',
+            'reset by peer',
+            "The MySQL connection is not established",
+            "is closed",
+        ]);
+    }
     /**
      * @param array $config
      * @return SwoolePDO
